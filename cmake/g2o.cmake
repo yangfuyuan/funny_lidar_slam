@@ -7,6 +7,7 @@ find_path(G2O_INCLUDE_DIR g2o/core/base_vertex.h
     /usr/local/include
     /usr/include
     /opt/local/include
+    /opt/ros/humble/include
     /sw/local/include
     /sw/include
     NO_DEFAULT_PATH
@@ -38,6 +39,7 @@ macro(FIND_G2O_LIBRARY MYLIBRARY MYLIBRARYNAME)
         /usr/lib
         /usr/lib64
         /opt/local/lib
+        /opt/ros/humble/lib
         /sw/local/lib
         /sw/lib
     )
@@ -62,6 +64,7 @@ macro(FIND_G2O_LIBRARY MYLIBRARY MYLIBRARYNAME)
         /usr/lib
         /usr/lib64
         /opt/local/lib
+        /opt/ros/humble/lib
         /sw/local/lib
         /sw/lib
     )
@@ -114,7 +117,6 @@ endif (G2O_STUFF_LIBRARY AND G2O_CORE_LIBRARY AND G2O_INCLUDE_DIR AND G2O_SOLVER
 
 if (G2O_FOUND AND G2O_INCLUDE_DIR)
     set(G2O_INCLUDE_DIRS ${G2O_INCLUDE_DIR})
-
     set(G2O_LIBRARIES
         ${G2O_STUFF_LIBRARY}
         ${G2O_CORE_LIBRARY}
@@ -129,4 +131,6 @@ if (G2O_FOUND AND G2O_INCLUDE_DIR)
         ${G2O_SOLVER_SLAM2D_LINEAR}
         ${G2O_SOLVER_STRUCTURE_ONLY}
         ${G2O_SOLVER_EIGEN})
+else()
+    message("NOT FOUND G2O")
 endif ()

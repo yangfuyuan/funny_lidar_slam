@@ -5,25 +5,27 @@
 #ifndef FUNNY_LIDAR_SLAM_SYSTEM_H
 #define FUNNY_LIDAR_SLAM_SYSTEM_H
 
-#include "common/frame.h"
-#include "common/keyframe.h"
-#include "imu/imu_data_searcher.h"
-#include "lidar/pointcloud_cluster.h"
-#include "funny_lidar_slam/save_map.h"
-#include "common/loopclosure_result.h"
-#include "optimization/g2o/loopclosure_optimizer.h"
-
-#include <livox_ros_driver/CustomMsg.h>
-
-#include <ros/ros.h>
-#include <nav_msgs/Path.h>
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2/utils.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <condition_variable>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <livox_ros_driver2/msg/custom_msg.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <thread>
+
+#include "common/frame.h"
+#include "common/keyframe.h"
+#include "common/loopclosure_result.h"
+#include "funny_lidar_slam/srv/save_map.hpp"
+#include "imu/imu_data_searcher.h"
+#include "lidar/pointcloud_cluster.h"
+#include "optimization/g2o/loopclosure_optimizer.h"
 
 class FrontEnd;
 
@@ -33,163 +35,213 @@ class LoopClosure;
 
 class Localization;
 
-enum SLAM_MODE {
-    UNKNOWN = 0,
-    MAPPING = 1,
-    LOCALIZATION = 2
+enum SLAM_MODE { UNKNOWN = 0, MAPPING = 1, LOCALIZATION = 2 };
+
+namespace util {
+template <typename T>
+struct identity {
+  typedef T type;
 };
 
-class System {
-public:
-    explicit System(std::shared_ptr<ros::NodeHandle> node_handle_ptr);
+template <typename NodeT, typename T>
+std::enable_if_t<std::is_pointer<NodeT>::value ||
+                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
+                 void>
+param(NodeT node, const std::string& param_name, T& param,
+      const typename identity<T>::type& default_value) {
+  node->declare_parameter(param_name, default_value);
+  node->get_parameter(param_name, param);
+  RCLCPP_INFO_STREAM(node->get_logger(), param_name << " = " << param);
+}
 
-    System() = delete;
+template <typename NodeT, typename T>
+std::enable_if_t<std::is_pointer<NodeT>::value ||
+                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
+                 void>
+param_vector(NodeT node, const std::string param_name, T& param,
+             const typename identity<T>::type& default_value) {
+  node->declare_parameter(param_name, default_value);
+  node->get_parameter(param_name, param);
+  for (int i = 0; i < param.size(); i++) {
+    RCLCPP_INFO_STREAM(node->get_logger(), param_name << "[" << i << "]"
+                                                      << " = " << param[i]);
+  }
+}
 
-    ~System();
+}  // namespace util
 
-    void Run();
+class System : public rclcpp::Node {
+ public:
+  explicit System(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
-    void RunMapping();
+  System() = delete;
 
-    void RunLocalization();
+  ~System();
 
-private:
-    static void InitLidarModel();
+  void Run();
 
-    void InitMappingMode();
+  void RunMapping();
 
-    void InitLocalizationMode();
+  void RunLocalization();
 
-    void InitSubscriber();
+ private:
+  static void InitLidarModel();
 
-    void InitPublisher();
+  void InitMappingMode();
 
-    void InitMappingPublisher();
+  void InitLocalizationMode();
 
-    void InitLocalizationPublisher();
+  void InitSubscriber();
 
-    void InitSaveMapServer();
+  void InitPublisher();
 
-    void InitConfigParameters();
+  void InitMappingPublisher();
 
-    void PublishMappingKeyFramePath();
+  void InitLocalizationPublisher();
 
-    void PublishLocalizationPath();
+  void InitSaveMapServer();
 
-    void LidarStandardMsgCallBack(const sensor_msgs::PointCloud2Ptr& cloud_ros_ptr);
+  void InitConfigParameters();
 
-    void LidarLivoxMsgCallBack(const livox_ros_driver::CustomMsg::ConstPtr& msg);
+  void PublishMappingKeyFramePath();
 
-    void LocalizationInitPoseMsgCallBack(const geometry_msgs::PoseWithCovarianceStampedConstPtr& msg);
+  void PublishLocalizationPath();
 
-    void ImuMsgCallBack(const sensor_msgs::ImuPtr& imu_ptr);
+  void LidarStandardMsgCallBack(
+      const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_ros_ptr);
 
-    bool HasLoopClosure();
+  void LidarLivoxMsgCallBack(
+      const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr& msg);
 
-    void PerformLoopclosureOptimization();
+  void LocalizationInitPoseMsgCallBack(
+      const geometry_msgs::msg::PoseWithCovarianceStamped::ConstSharedPtr& msg);
 
-    void PublishMappingFrameCloud(const Frame::Ptr& frame, const Mat4d& pose);
+  void ImuMsgCallBack(const sensor_msgs::msg::Imu::ConstSharedPtr& imu_ptr);
 
-    void PublishMappingKeyFrameCloud(const KeyFrame::Ptr& keyframe);
+  bool HasLoopClosure();
 
-    void PublishTF(const Mat4d& pose, TimeStampUs timestamp);
+  void PerformLoopclosureOptimization();
 
-    /*!
-     * Process frame cache
-     * @return if true, current frame is keyframe
-     */
-    bool ProcessMappingFrameCache();
+  void PublishMappingFrameCloud(const Frame::Ptr& frame, const Mat4d& pose);
 
-    bool ProcessLocalizationResultCache();
+  void PublishMappingKeyFrameCloud(const KeyFrame::Ptr& keyframe);
 
-    [[nodiscard]] bool IsKeyFrame(const Mat4d& delta_pose) const;
+  void PublishTF(const Mat4d& pose, TimeStampUs timestamp);
 
-    static bool InitIMU(const IMUData& imu_data, Vec3d& init_mean_acc);
+  /*!
+   * Process frame cache
+   * @return if true, current frame is keyframe
+   */
+  bool ProcessMappingFrameCache();
 
-    void VisualizeGlobalMap();
+  bool ProcessLocalizationResultCache();
 
-    bool SaveMap(funny_lidar_slam::save_map::Request& req,
-                 funny_lidar_slam::save_map::Response& res);
+  [[nodiscard]] bool IsKeyFrame(const Mat4d& delta_pose) const;
 
-private:
-    // ros subscriber
-    ros::Subscriber imu_sub_;
-    ros::Subscriber lidar_sub_;
-    ros::Subscriber localization_init_pose_sub_;
+  static bool InitIMU(const IMUData& imu_data, Vec3d& init_mean_acc);
 
-    // ros server
-    ros::ServiceServer save_map_server_;
+  void VisualizeGlobalMap();
 
-    // ros publisher
-    ros::Publisher localization_path_pub_;
-    ros::Publisher localization_local_cloud_map_pub_;
-    ros::Publisher localization_global_cloud_map_pub_;
-    ros::Publisher localization_current_lidar_cloud_pub_;
-    ros::Publisher mapping_keyframe_path_pub_;
-    ros::Publisher mapping_keyframe_path_cloud_pub_;
-    ros::Publisher mapping_curr_corner_cloud_pub_;
-    ros::Publisher mapping_curr_planer_cloud_pub_;
-    ros::Publisher mapping_curr_cloud_pub_;
-    ros::Publisher mapping_curr_keyframe_cloud_pub_;
-    ros::Publisher mapping_global_map_cloud_pub_;
-    tf::TransformBroadcaster tf_broadcaster_; // lidar odometer
+  bool SaveMap(std::shared_ptr<funny_lidar_slam::srv::SaveMap::Request> req,
+               std::shared_ptr<funny_lidar_slam::srv::SaveMap::Response> res);
 
-    // frontend
-    FrontEnd* front_end_ptr_ = nullptr;
+ private:
+  // ros2 subscriber
+  rclcpp::CallbackGroup::SharedPtr imu_cb_group_;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+  rclcpp::CallbackGroup::SharedPtr lidar_cb_group_;
+  rclcpp::SubscriptionBase::SharedPtr lidar_sub_;
+  rclcpp::CallbackGroup::SharedPtr init_pose_cb_group_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+      localization_init_pose_sub_;
 
-    // pre-processing
-    PreProcessing* pre_processing_ptr_ = nullptr;
+  // ros server
+  rclcpp::CallbackGroup::SharedPtr save_map_cb_group_;
+  rclcpp::Service<funny_lidar_slam::srv::SaveMap>::SharedPtr save_map_server_;
 
-    // loopclosure
-    LoopClosure* loop_closure_ptr_ = nullptr;
+  // ros publisher
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr localization_path_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      localization_local_cloud_map_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      localization_global_cloud_map_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      localization_current_lidar_cloud_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mapping_keyframe_path_pub_;
+  //
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_keyframe_path_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_curr_corner_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_curr_planer_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_curr_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_curr_keyframe_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      mapping_global_map_cloud_pub_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster>
+      tf_broadcaster_;  // lidar odometer
+  rclcpp::CallbackGroup::SharedPtr timer_cb_group_;
+  rclcpp::TimerBase::SharedPtr system_timer_;  // 执行定时器
 
-    // localization
-    Localization* localization_ptr_ = nullptr;
+  // frontend
+  FrontEnd* front_end_ptr_ = nullptr;
 
-    std::thread* frontend_thread_ptr_ = nullptr;
-    std::thread* pre_processing_thread_ptr_ = nullptr;
-    std::thread* loop_closure_thread_ptr_ = nullptr;
-    std::thread* visualize_global_map_thread_ptr_ = nullptr;
-    std::thread* localization_thread_ptr_ = nullptr;
+  // pre-processing
+  PreProcessing* pre_processing_ptr_ = nullptr;
 
-public:
-    // ros node handle
-    std::shared_ptr<ros::NodeHandle> node_handle_ptr_ = nullptr;
+  // loopclosure
+  LoopClosure* loop_closure_ptr_ = nullptr;
 
-    // data searcher use to search imu data
-    std::shared_ptr<IMUDataSearcher> imu_data_searcher_ptr_ = nullptr;
-    std::shared_ptr<LoopClosureOptimizer> loop_closure_optimizer_ptr_ = nullptr;
+  // localization
+  Localization* localization_ptr_ = nullptr;
 
-    // condition variable
-    std::condition_variable cv_frontend_;
-    std::condition_variable cv_localization_;
-    std::condition_variable cv_preprocessing_;
+  std::thread* frontend_thread_ptr_ = nullptr;
+  std::thread* pre_processing_thread_ptr_ = nullptr;
+  std::thread* loop_closure_thread_ptr_ = nullptr;
+  std::thread* visualize_global_map_thread_ptr_ = nullptr;
+  std::thread* localization_thread_ptr_ = nullptr;
 
-    std::atomic_bool has_imu_init_{false};
-    std::atomic_bool need_update_global_map_visualization_{false};
+ public:
+  // ros node handle
+  // std::shared_ptr<ros::NodeHandle> node_handle_ptr_ = nullptr;
 
-    // mutex
-    std::mutex mutex_keyframes_;
-    std::mutex mutex_raw_cloud_deque_;
-    std::mutex mutex_cloud_cluster_deque_;
-    std::mutex mutex_loopclosure_results_;
-    std::mutex mutex_frame_temp_deque_;
-    std::mutex mutex_localization_results_deque_;
+  // data searcher use to search imu data
+  std::shared_ptr<IMUDataSearcher> imu_data_searcher_ptr_ = nullptr;
+  std::shared_ptr<LoopClosureOptimizer> loop_closure_optimizer_ptr_ = nullptr;
 
-    // deque
-    std::deque<NavStateData::Ptr> localization_results_deque_;
-    std::deque<PointcloudClusterPtr> cloud_cluster_deque_;
-    std::deque<sensor_msgs::PointCloud2Ptr> raw_cloud_deque_;
-    std::deque<LoopClosureResult> loopclosure_result_deque_;
-    std::deque<Frame::Ptr> frame_temp_deque_;
+  // condition variable
+  std::condition_variable cv_frontend_;
+  std::condition_variable cv_localization_;
+  std::condition_variable cv_preprocessing_;
 
-    // keyframes
-    std::vector<KeyFrame::Ptr> keyframes_;
+  std::atomic_bool has_imu_init_{false};
+  std::atomic_bool need_update_global_map_visualization_{false};
 
-    // localization ros path
-    nav_msgs::Path localization_path_;
+  // mutex
+  std::mutex mutex_keyframes_;
+  std::mutex mutex_raw_cloud_deque_;
+  std::mutex mutex_cloud_cluster_deque_;
+  std::mutex mutex_loopclosure_results_;
+  std::mutex mutex_frame_temp_deque_;
+  std::mutex mutex_localization_results_deque_;
 
-    SLAM_MODE slam_mode_ = SLAM_MODE::UNKNOWN;
+  // deque
+  std::deque<NavStateData::Ptr> localization_results_deque_;
+  std::deque<PointcloudClusterPtr> cloud_cluster_deque_;
+  std::deque<sensor_msgs::msg::PointCloud2::ConstSharedPtr> raw_cloud_deque_;
+  std::deque<LoopClosureResult> loopclosure_result_deque_;
+  std::deque<Frame::Ptr> frame_temp_deque_;
+
+  // keyframes
+  std::vector<KeyFrame::Ptr> keyframes_;
+
+  // localization ros path
+  nav_msgs::msg::Path localization_path_;
+
+  SLAM_MODE slam_mode_ = SLAM_MODE::UNKNOWN;
 };
 
-#endif //FUNNY_LIDAR_SLAM_SYSTEM_H
+#endif  // FUNNY_LIDAR_SLAM_SYSTEM_H
