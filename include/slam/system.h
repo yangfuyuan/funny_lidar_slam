@@ -37,39 +37,6 @@ class Localization;
 
 enum SLAM_MODE { UNKNOWN = 0, MAPPING = 1, LOCALIZATION = 2 };
 
-namespace util {
-template <typename T>
-struct identity {
-  typedef T type;
-};
-
-template <typename NodeT, typename T>
-std::enable_if_t<std::is_pointer<NodeT>::value ||
-                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
-                 void>
-param(NodeT node, const std::string& param_name, T& param,
-      const typename identity<T>::type& default_value) {
-  node->declare_parameter(param_name, default_value);
-  node->get_parameter(param_name, param);
-  RCLCPP_INFO_STREAM(node->get_logger(), param_name << " = " << param);
-}
-
-template <typename NodeT, typename T>
-std::enable_if_t<std::is_pointer<NodeT>::value ||
-                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
-                 void>
-param_vector(NodeT node, const std::string param_name, T& param,
-             const typename identity<T>::type& default_value) {
-  node->declare_parameter(param_name, default_value);
-  node->get_parameter(param_name, param);
-  for (int i = 0; i < param.size(); i++) {
-    RCLCPP_INFO_STREAM(node->get_logger(), param_name << "[" << i << "]"
-                                                      << " = " << param[i]);
-  }
-}
-
-}  // namespace util
-
 class System : public rclcpp::Node {
  public:
   explicit System(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
@@ -187,22 +154,22 @@ class System : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr system_timer_;  // 执行定时器
 
   // frontend
-  FrontEnd* front_end_ptr_ = nullptr;
+  std::shared_ptr<FrontEnd> front_end_ptr_ = nullptr;
 
   // pre-processing
-  PreProcessing* pre_processing_ptr_ = nullptr;
+  std::shared_ptr<PreProcessing> pre_processing_ptr_ = nullptr;
 
   // loopclosure
-  LoopClosure* loop_closure_ptr_ = nullptr;
+  std::shared_ptr<LoopClosure> loop_closure_ptr_ = nullptr;
 
   // localization
-  Localization* localization_ptr_ = nullptr;
+  std::shared_ptr<Localization> localization_ptr_ = nullptr;
 
-  std::thread* frontend_thread_ptr_ = nullptr;
-  std::thread* pre_processing_thread_ptr_ = nullptr;
-  std::thread* loop_closure_thread_ptr_ = nullptr;
-  std::thread* visualize_global_map_thread_ptr_ = nullptr;
-  std::thread* localization_thread_ptr_ = nullptr;
+  std::shared_ptr<std::thread> frontend_thread_ptr_ = nullptr;
+  std::shared_ptr<std::thread> pre_processing_thread_ptr_ = nullptr;
+  std::shared_ptr<std::thread> loop_closure_thread_ptr_ = nullptr;
+  std::shared_ptr<std::thread> visualize_global_map_thread_ptr_ = nullptr;
+  std::shared_ptr<std::thread> localization_thread_ptr_ = nullptr;
 
  public:
   // ros node handle

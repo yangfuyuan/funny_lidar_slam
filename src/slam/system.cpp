@@ -42,14 +42,14 @@ System::System(const rclcpp::NodeOptions& options)
     LOG(FATAL) << "Please select SLAM mode";
   }
 
-  pre_processing_ptr_ = new PreProcessing(this);
+  pre_processing_ptr_ = std::make_shared<PreProcessing>(this);
   pre_processing_thread_ptr_ =
-      new std::thread(&PreProcessing::Run, pre_processing_ptr_);
+      std::make_shared<std::thread>(&PreProcessing::Run, pre_processing_ptr_);
   //
   this->timer_cb_group_ =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   system_timer_ =
-      this->create_wall_timer(std::chrono::milliseconds(5),
+      this->create_wall_timer(std::chrono::milliseconds(10),
                               std::bind(&System::Run, this), timer_cb_group_);
 }
 
@@ -59,57 +59,49 @@ void System::InitMappingMode() {
 
   loop_closure_optimizer_ptr_ = std::make_shared<LoopClosureOptimizer>();
 
-  front_end_ptr_ = new FrontEnd(this);
-  frontend_thread_ptr_ = new std::thread(&FrontEnd::Run, front_end_ptr_);
+  front_end_ptr_ = std::make_shared<FrontEnd>(this);
+  frontend_thread_ptr_ =
+      std::make_shared<std::thread>(&FrontEnd::Run, front_end_ptr_.get());
 
   if (ConfigParameters::Instance().system_enable_loopclosure_) {
-    loop_closure_ptr_ = new LoopClosure(this);
-    loop_closure_thread_ptr_ =
-        new std::thread(&LoopClosure::Run, loop_closure_ptr_);
+    loop_closure_ptr_ = std::make_shared<LoopClosure>(this);
+    loop_closure_thread_ptr_ = std::make_shared<std::thread>(
+        &LoopClosure::Run, loop_closure_ptr_.get());
   }
 
   if (ConfigParameters::Instance().system_enable_visualize_global_map_) {
     visualize_global_map_thread_ptr_ =
-        new std::thread(&System::VisualizeGlobalMap, this);
+        std::make_shared<std::thread>(&System::VisualizeGlobalMap, this);
   }
 }
 
 void System::InitLocalizationMode() {
   InitLocalizationPublisher();
-
-  localization_ptr_ = new Localization(this);
-  localization_thread_ptr_ =
-      new std::thread(&Localization::Run, localization_ptr_);
+  localization_ptr_ = std::make_shared<Localization>(this);
+  localization_thread_ptr_ = std::make_shared<std::thread>(
+      &Localization::Run, localization_ptr_.get());
 }
 
 System::~System() {
-  if (slam_mode_ == SLAM_MODE::MAPPING) {
-    cv_frontend_.notify_one();
+  cv_frontend_.notify_one();
+  if (frontend_thread_ptr_ && frontend_thread_ptr_->joinable()) {
     frontend_thread_ptr_->join();
-    delete front_end_ptr_;
-    delete frontend_thread_ptr_;
-
-    if (ConfigParameters::Instance().system_enable_loopclosure_) {
-      loop_closure_thread_ptr_->join();
-      delete loop_closure_ptr_;
-      delete loop_closure_thread_ptr_;
-    }
-
-    if (ConfigParameters::Instance().system_enable_visualize_global_map_) {
-      visualize_global_map_thread_ptr_->join();
-      delete visualize_global_map_thread_ptr_;
-    }
-  } else if (slam_mode_ == SLAM_MODE::LOCALIZATION) {
-    cv_localization_.notify_one();
-    localization_thread_ptr_->join();
-    delete localization_ptr_;
-    delete localization_thread_ptr_;
   }
-
+  if (loop_closure_thread_ptr_ && loop_closure_thread_ptr_->joinable()) {
+    loop_closure_thread_ptr_->join();
+  }
+  if (visualize_global_map_thread_ptr_ &&
+      visualize_global_map_thread_ptr_->joinable()) {
+    visualize_global_map_thread_ptr_->join();
+  }
+  cv_localization_.notify_one();
+  if (localization_thread_ptr_ && localization_thread_ptr_->joinable()) {
+    localization_thread_ptr_->join();
+  }
   cv_preprocessing_.notify_one();
-  pre_processing_thread_ptr_->join();
-  delete pre_processing_ptr_;
-  delete pre_processing_thread_ptr_;
+  if (pre_processing_thread_ptr_ && pre_processing_thread_ptr_->joinable()) {
+    pre_processing_thread_ptr_->join();
+  }
 }
 
 void System::InitLidarModel() {
@@ -730,6 +722,7 @@ bool System::ProcessLocalizationResultCache() {
   pose_stamped.pose.position.y = t.y();
   pose_stamped.pose.position.z = t.z();
   pose_stamped.header.frame_id = kRosMapFrameID;
+  pose_stamped.header.stamp = this->get_clock()->now();
   localization_path_.poses.emplace_back(std::move(pose_stamped));
 
   return true;
@@ -839,6 +832,7 @@ void System::PerformLoopclosureOptimization() {
 void System::PublishLocalizationPath() {
   if (localization_path_pub_->get_subscription_count() > 0) {
     localization_path_.header.frame_id = kRosMapFrameID;
+    localization_path_.header.stamp = this->get_clock()->now();
     localization_path_pub_->publish(localization_path_);
   }
 }
@@ -870,7 +864,6 @@ void System::PublishMappingKeyFramePath() {
       const auto& pose = keyframe->pose_;
 
       const Eigen::Quaterniond q(pose.block<3, 3>(0, 0));
-      // const Vec3d& t = pose.block<3, 1>(0, 3);
       const Vec3d& t = pose.template block<3, 1>(0, 3);
 
       geometry_msgs::msg::PoseStamped pose_stamped;
@@ -887,6 +880,7 @@ void System::PublishMappingKeyFramePath() {
     }
 
     path.header.frame_id = kRosMapFrameID;
+    path.header.stamp = this->get_clock()->now();
     mapping_keyframe_path_pub_->publish(path);
   }
 }
@@ -920,7 +914,6 @@ void System::PublishMappingKeyFrameCloud(const KeyFrame::Ptr& keyframe) {
     return;
   }
 
-  sensor_msgs::msg::PointCloud2 cloud_ros;
   PCLPointCloudXYZI::Ptr cloud_trans(new PCLPointCloudXYZI);
 
   *cloud_trans = keyframe->cloud_cluster_ptr_->ordered_cloud_;

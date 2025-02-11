@@ -18,6 +18,39 @@
 #include "common/constant_variable.h"
 #include "common/data_type.h"
 
+namespace util {
+template <typename T>
+struct identity {
+  typedef T type;
+};
+
+template <typename NodeT, typename T>
+std::enable_if_t<std::is_pointer<NodeT>::value ||
+                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
+                 void>
+param(NodeT node, const std::string &param_name, T &param,
+      const typename identity<T>::type &default_value) {
+  node->declare_parameter(param_name, default_value);
+  node->get_parameter(param_name, param);
+  RCLCPP_INFO_STREAM(node->get_logger(), param_name << " = " << param);
+}
+
+template <typename NodeT, typename T>
+std::enable_if_t<std::is_pointer<NodeT>::value ||
+                     std::is_same<NodeT, std::shared_ptr<rclcpp::Node>>::value,
+                 void>
+param_vector(NodeT node, const std::string param_name, T &param,
+             const typename identity<T>::type &default_value) {
+  node->declare_parameter(param_name, default_value);
+  node->get_parameter(param_name, param);
+  for (int i = 0; i < param.size(); i++) {
+    RCLCPP_INFO_STREAM(node->get_logger(), param_name << "[" << i << "]"
+                                                      << " = " << param[i]);
+  }
+}
+
+}  // namespace util
+
 inline Vec3d RosVec3dToEigen(
     const geometry_msgs::msg::Vector3_<std::allocator<void>> &v) {
   return {v.x, v.y, v.z};
@@ -44,10 +77,11 @@ inline void PublishRosCloud(
   if (pub->get_subscription_count() == 0) {
     return;
   }
-
+  rclcpp::Clock clock;
   sensor_msgs::msg::PointCloud2 cloud_ros;
   pcl::toROSMsg(*cloud, cloud_ros);
   cloud_ros.header.frame_id = kRosMapFrameID;
+  cloud_ros.header.stamp = clock.now();
   pub->publish(cloud_ros);
 }
 

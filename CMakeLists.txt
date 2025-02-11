@@ -4,10 +4,11 @@ project(funny_lidar_slam)
 #set(CMAKE_VERBOSE_MAKEFILE true)
 
 IF (NOT CMAKE_BUILD_TYPE)
-    SET(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 ENDIF ()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -37,7 +38,6 @@ ament_auto_find_build_dependencies()
 find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-
 include_directories(${CMAKE_SOURCE_DIR})
 
 # livox message
@@ -114,7 +114,7 @@ target_link_libraries(funny_lidar_slam funny_lidar_slam_lib)
 
 
 ### TEST ###
-option(build_unit_tests "will execute all unit tests" OFF)
+option(build_unit_tests "will execute all unit tests" ON)
 
 if (build_unit_tests)
     enable_testing()

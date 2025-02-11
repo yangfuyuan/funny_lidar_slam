@@ -10,9 +10,11 @@
 #include "common/keyframe.h"
 #include "slam/system.h"
 
+#ifdef DEBUG
 namespace backward {
 backward::SignalHandling sh;
 }
+#endif
 
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
