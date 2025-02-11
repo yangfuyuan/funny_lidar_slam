@@ -92,7 +92,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_M2DGR.launch.py
 
-rosbag play street_02.bag # Play one of the sets of data
+#rosbag play street_02.bag # Play one of the sets of data
 ```
 
 - Dataset: [NCLT](https://robots.engin.umich.edu/nclt/index.html#download). You can also get part of the dataset from [Baidu Pan](https://pan.baidu.com/s/1Z3UzjP1FWJu9XSwujo_d5g?pwd=jggw) for testing.
@@ -102,7 +102,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_nclt.launch.py
 
-rosbag play 20130110.bag # Play one of the sets of data
+#rosbag play 20130110.bag # Play one of the sets of data
 ```
 
 ### 4.2 For Velodyne HDL-16E
@@ -114,7 +114,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_lio_sam.launch.py
 
-rosbag play walking_dataset.bag # Play one of the sets of data
+#rosbag play walking_dataset.bag # Play one of the sets of data
 ```
 
 ### 4.3 For Livox Mid-360
@@ -126,7 +126,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_mid360.launch.py
 
-rosbag play mid_360.bag # Play one of the sets of data
+#rosbag play mid_360.bag # Play one of the sets of data
 ```
 
 Note: If your Mid-360 format is `livox_ros_driver2/CustomMsg`, you can use `4.4 For Livox Avia` to run.
@@ -140,7 +140,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_livox_avia.launch.py
 
-rosbag play avia.bag  # Play one of the sets of data
+#rosbag play avia.bag  # Play one of the sets of data
 ```
 
 Note: If your Livox Avia format is `sensor_msgs/PointCloud2`, you can use `4.3 For Livox Mid-360` to run.
@@ -154,7 +154,7 @@ cd funny_lidar_slam_ws
 source install/setup.bash
 ros2 launch funny_lidar_slam mapping_turing.launch.py
 
-rosbag play our.bag # Play one of the sets of data
+#rosbag play our.bag # Play one of the sets of data
 ```
 
 ### 4.6 Save PointCloud Map
