@@ -5,7 +5,7 @@
     <description>This is a funny lidar slam ros2 package</description>
     <maintainer email="849742405@qq.com">meng</maintainer>
     <license>TODO</license>
-    <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake_auto</buildtool_depend>
     <buildtool_depend>rosidl_default_generators</buildtool_depend>
     <depend>pcl_ros</depend>
     <depend>pcl_conversions</depend>

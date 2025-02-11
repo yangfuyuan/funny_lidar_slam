@@ -41,7 +41,10 @@ find_package(rosidl_default_generators REQUIRED)
 include_directories(${CMAKE_SOURCE_DIR})
 
 # livox message
-#add_subdirectory(include/3rd/livox_ros_driver)
+find_package(livox_ros_driver2 QUIET)
+if(NOT livox_ros_driver2_FOUND)
+  message(FATAL_ERROR "Not Found Livox ROS 2 Driver")
+endif()
 
 ################################################################################
 # Declare ROS messages, services and actions
@@ -97,7 +100,6 @@ target_include_directories(funny_lidar_slam_lib PUBLIC
 
 target_link_libraries(
     funny_lidar_slam_lib
-    tbb
     ${MSG_INTERFACE_TARGET}   # for custom msgs
     ${GLOG_LIBRARIES}
     ${YAML_CPP_LIBRARIES}
